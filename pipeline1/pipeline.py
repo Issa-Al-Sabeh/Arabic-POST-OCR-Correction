@@ -1,6 +1,7 @@
 import os
 import shutil
 from pathlib import Path
+import json
 
 import cv2
 import numpy as np
@@ -10,6 +11,7 @@ from bidi.algorithm import get_display
 from pdf2image import convert_from_path
 from PIL import Image
 import pytesseract
+from pytesseract import Output
 
 # =============================
 # PATHS / SETTINGS
@@ -19,6 +21,7 @@ POPPLER_PATH = r"C:\poppler\Library\bin"
 
 # Change this if Tesseract is installed elsewhere
 pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+TESS_LANG = "ara"   # or "ara+eng" if you want both
 
 BASE_DIR = Path(__file__).resolve().parent
 
@@ -26,7 +29,7 @@ INPUT_TXT_DIR = BASE_DIR / "input_txt"
 DONE_TXT_DIR = BASE_DIR / "input_txt_done"
 OUTPUT_PDF_DIR = BASE_DIR / "output_pdf"
 TEMP_PDF_DIR = BASE_DIR / "temp_pdf"
-OUTPUT_TXT_DIR = BASE_DIR / "output_txt"   # <--- OCR output here
+OUTPUT_JSON_DIR = BASE_DIR / "output_json"   # <--- OCR JSON output here
 
 FONT_PATH = BASE_DIR / "Amiri-Regular.ttf"
 FONT_NAME = "Arabic"
@@ -36,7 +39,7 @@ INPUT_TXT_DIR.mkdir(exist_ok=True)
 DONE_TXT_DIR.mkdir(exist_ok=True)
 OUTPUT_PDF_DIR.mkdir(exist_ok=True)
 TEMP_PDF_DIR.mkdir(exist_ok=True)
-OUTPUT_TXT_DIR.mkdir(exist_ok=True)
+OUTPUT_JSON_DIR.mkdir(exist_ok=True)
 
 
 # =============================
@@ -151,33 +154,89 @@ def clean_pdf_to_noisy(clean_pdf_path: Path, noisy_pdf_path: Path):
 
 
 # =============================
-# OCR: NOISY PDF -> TXT
+# OCR: NOISY PDF -> JSON
 # =============================
 
-def ocr_pdf_to_txt(pdf_path: Path, txt_path: Path):
-    """Run Tesseract OCR on a PDF and save text to txt_path."""
-    print(f"  -> OCR on: {pdf_path.name}")
-
+def ocr_pdf_to_custom_json(pdf_path: Path) -> dict:
+    """Run OCR on a PDF and return a structured JSON-like dict."""
     pages = convert_from_path(
         str(pdf_path),
         dpi=300,
         poppler_path=POPPLER_PATH
     )
 
-    all_text = []
+    result = {
+        "document": pdf_path.name,
+        "total_pages": len(pages),
+        "pages": []
+    }
 
     for page_num, img in enumerate(pages, start=1):
-        print(f"     - Page {page_num} ...", end=" ", flush=True)
-        text = pytesseract.image_to_string(img, lang="ara")  # Arabic OCR
-        all_text.append(text)
+        print(f"     - OCR page {page_num} ...", end=" ", flush=True)
+
+        data = pytesseract.image_to_data(
+            img,
+            lang=TESS_LANG,
+            output_type=Output.DICT
+        )
+
+        words = []
+        all_text_parts = []
+
+        n_items = len(data["text"])
+        for i in range(n_items):
+            text = data["text"][i].strip()
+            if not text:
+                continue  # skip empty entries
+
+            conf_str = str(data["conf"][i])
+            try:
+                conf = int(float(conf_str))
+            except ValueError:
+                conf = -1
+
+            x = int(data["left"][i])
+            y = int(data["top"][i])
+            w = int(data["width"][i])
+            h = int(data["height"][i])
+
+            words.append({
+                "text": text,
+                "confidence": conf,
+                "bbox": {
+                    "x": x,
+                    "y": y,
+                    "width": w,
+                    "height": h
+                }
+            })
+
+            all_text_parts.append(text)
+
+        page_text = " ".join(all_text_parts)
+
+        page_entry = {
+            "page_number": page_num,
+            "text": page_text,
+            "word_count": len(words),
+            "words": words
+        }
+        result["pages"].append(page_entry)
+
         print("done")
 
-    full_text = "\n\n\f\n\n".join(all_text)
+    return result
 
-    with open(txt_path, "w", encoding="utf-8") as f:
-        f.write(full_text)
 
-    print(f"  -> OCR txt saved: {txt_path.name}")
+def ocr_pdf_to_json_file(pdf_path: Path, json_path: Path):
+    """OCR a PDF and write the result to a JSON file."""
+    print(f"  -> OCR (JSON) on: {pdf_path.name}")
+    ocr_json = ocr_pdf_to_custom_json(pdf_path)
+
+    with open(json_path, "w", encoding="utf-8") as f:
+        json.dump(ocr_json, f, ensure_ascii=False, indent=2)
+
+    print(f"  -> OCR JSON saved: {json_path.name}")
 
 
 # =============================
@@ -189,7 +248,7 @@ def process_txt_file(txt_file: Path):
 
     clean_pdf_path = TEMP_PDF_DIR / f"{base_name}_clean.pdf"
     noisy_pdf_path = OUTPUT_PDF_DIR / f"{base_name}.pdf"
-    ocr_txt_path = OUTPUT_TXT_DIR / f"{base_name}.txt"
+    ocr_json_path = OUTPUT_JSON_DIR / f"{base_name}.json"
 
     print(f"\nProcessing: {txt_file.name}")
 
@@ -199,8 +258,8 @@ def process_txt_file(txt_file: Path):
     # 2) clean PDF -> noisy PDF
     clean_pdf_to_noisy(clean_pdf_path, noisy_pdf_path)
 
-    # 3) noisy PDF -> OCR txt
-    ocr_pdf_to_txt(noisy_pdf_path, ocr_txt_path)
+    # 3) noisy PDF -> OCR JSON
+    ocr_pdf_to_json_file(noisy_pdf_path, ocr_json_path)
 
     # 4) Remove temp clean PDF
     try:
@@ -229,7 +288,7 @@ def main():
             print(f"❌ Error processing {txt_file.name}: {e}")
 
     print("\n🎉 Done! Noisy PDFs are in:", OUTPUT_PDF_DIR.resolve())
-    print("📄 OCR txt files are in:", OUTPUT_TXT_DIR.resolve())
+    print("📄 OCR JSON files are in:", OUTPUT_JSON_DIR.resolve())
 
 
 if __name__ == "__main__":

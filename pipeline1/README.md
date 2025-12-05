@@ -15,9 +15,10 @@ This prevents re-processing the same file.
 
 Stores the final noisy/scanned-like PDF generated from each `.txt` file.
 
-### **output_txt/**
+### **output_json/**
 
-Stores the OCR output text generated from the noisy PDFs.
+Stores the OCR output **JSON** generated from the noisy PDFs.  
+Each JSON file has the same base name as its source `.txt` / PDF.
 
 ### **temp_pdf/**
 
@@ -36,10 +37,10 @@ The font used to render Arabic text when converting `.txt` files to PDF.
 
 The main pipeline script. It:
 
-1. Converts `.txt` → clean PDF
-2. Adds noise → noisy scanned-like PDF
-3. Runs OCR on the noisy PDF
-4. Saves the OCR output
+1. Converts `.txt` → **clean PDF**
+2. Adds noise → **noisy scanned-like PDF** (saved in `output_pdf/`)
+3. Runs OCR on the noisy PDF and builds a **custom JSON structure**
+4. Saves the OCR JSON in `output_json/`
 5. Moves the processed `.txt` file to `input_txt_done/`
 
 ### **reset.py**
@@ -47,7 +48,7 @@ The main pipeline script. It:
 Resets the project by:
 
 - Deleting all generated PDFs from `output_pdf/`
-- Deleting all OCR `.txt` files from `output_txt/`
+- Deleting all OCR JSON files from `output_json/`
 - Moving processed `.txt` files back from `input_txt_done/` to `input_txt/`
 
 ---
