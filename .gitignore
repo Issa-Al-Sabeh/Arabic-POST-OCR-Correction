@@ -2,6 +2,12 @@
 *[Aa][Rr][Aa][Ff][Ii][Xx]*/
 *[Aa][Rr][Aa][Ff][Ii][Xx]*/**
 
+# Large data folders
+pipeline2/labeled_data/
+pipeline2/xml_converted_json/
+pipeline2/arabic_ocr/
+pipeline2/utils/
+
 # Python cache
 __pycache__/
 *.py[cod]
