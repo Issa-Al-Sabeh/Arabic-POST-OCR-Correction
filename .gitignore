@@ -1,0 +1,33 @@
+# Ignore all folders with 'arafix' or 'AraFix' in the name (case-insensitive)
+*[Aa][Rr][Aa][Ff][Ii][Xx]*/
+*[Aa][Rr][Aa][Ff][Ii][Xx]*/**
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Virtual environments
+venv/
+env/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Model checkpoints and large files
+*.safetensors
+*.bin
+*.pth
+*.pt
